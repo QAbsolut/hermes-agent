@@ -3468,12 +3468,22 @@ def _text_to_speech_single(
         if voice_compatible:
             media_tag = f"[[audio_as_voice]]\n{media_tag}"
 
+        # Command providers may already play audio out loud themselves while
+        # synthesizing (e.g. a local Kokoro/piper script streaming to the
+        # speakers). Surface that so callers don't play the returned file a
+        # second time — see tts.providers.<name>.local_playback in config.yaml.
+        already_played_locally = bool(
+            command_provider_config is not None
+            and _config_bool(command_provider_config.get("local_playback"))
+        )
+
         return json.dumps({
             "success": True,
             "file_path": file_str,
             "media_tag": media_tag,
             "provider": provider,
             "voice_compatible": voice_compatible,
+            "local_playback": already_played_locally,
         }, ensure_ascii=False)
 
     except ValueError as e:
