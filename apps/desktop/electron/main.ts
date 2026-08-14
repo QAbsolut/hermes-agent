@@ -641,6 +641,12 @@ const PREVIEW_GUEST_PRELOAD_PATH = path.join(APP_ROOT, 'dist', 'preview-guest-pr
 // (1/true → always disable, 0/false → keep GPU on).
 const REMOTE_DISPLAY_REASON = detectRemoteDisplay()
 
+// Enable XDG Desktop Portal for global shortcuts on Wayland. Electron 40+ has
+// built-in support but the feature is off by default — without this flag the
+// renderer never speaks the GlobalShortcuts protocol and register() always
+// returns false on Wayland (Electron upstream #51875).
+app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
+
 if (REMOTE_DISPLAY_REASON) {
   app.disableHardwareAcceleration()
   // Belt-and-suspenders for X11/VNC, where the Viz compositor can still glitch
