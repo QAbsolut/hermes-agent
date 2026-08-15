@@ -227,6 +227,81 @@ describe('scanDiskPlugins (#66899)', () => {
       delete (globalThis as unknown as { __uniRegister?: unknown }).__uniRegister
     }
   })
+
+  it('rejects a second disk file that claims an id another file already owns', async () => {
+    desktopPluginsRoot.mockResolvedValue('/local/.hermes/desktop-plugins')
+    agentPluginsRoot.mockResolvedValue('/local/.hermes/plugins')
+    readDir.mockImplementation(async dir =>
+      dir === '/local/.hermes/plugins'
+        ? {
+            entries: [
+              { isDirectory: true, name: 'plugin-a', path: '/local/.hermes/plugins/plugin-a' },
+              { isDirectory: true, name: 'plugin-b', path: '/local/.hermes/plugins/plugin-b' }
+            ]
+          }
+        : { entries: [] }
+    )
+
+    const registerA = vi.fn()
+
+    const registerB = vi.fn()
+
+    ;(globalThis as unknown as { __dupRegisterA: unknown }).__dupRegisterA = registerA
+    ;(globalThis as unknown as { __dupRegisterB: unknown }).__dupRegisterB = registerB
+    readFileText.mockImplementation(async file => {
+      if (file === '/local/.hermes/plugins/plugin-a/desktop/plugin.js') {
+        return { text: 'export default { id: "dup", register: globalThis.__dupRegisterA }' }
+      }
+
+      if (file === '/local/.hermes/plugins/plugin-b/desktop/plugin.js') {
+        return { text: 'export default { id: "dup", register: globalThis.__dupRegisterB }' }
+      }
+
+      throw new Error('ENOENT')
+    })
+    watchPreviewFile.mockResolvedValue({ id: 'w-dup' })
+
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation(
+        blob =>
+          `data:text/javascript;base64,${Buffer.from((blob as unknown as { parts: string[] }).parts.join('')).toString('base64')}`
+      )
+
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const RealBlob = globalThis.Blob
+    vi.stubGlobal(
+      'Blob',
+      class {
+        parts: string[]
+        constructor(parts: string[]) {
+          this.parts = parts
+        }
+      }
+    )
+
+    try {
+      await discoverRuntimePlugins()
+
+      // The folder that scans first (alphabetical) claims the id at inventory
+      // time — before either is even activated.
+      expect($pluginRecords.get().dup).toMatchObject({ file: '/local/.hermes/plugins/plugin-a/desktop/plugin.js' })
+      expect($pluginRecords.get()['plugin-b']).toMatchObject({
+        status: 'error',
+        error: expect.stringContaining('already loaded from')
+      })
+
+      await setPluginEnabled('dup', true)
+      expect(registerA).toHaveBeenCalledTimes(1)
+      expect(registerB).not.toHaveBeenCalled()
+    } finally {
+      createObjectURL.mockRestore()
+      revokeObjectURL.mockRestore()
+      vi.stubGlobal('Blob', RealBlob)
+      delete (globalThis as unknown as { __dupRegisterA?: unknown }).__dupRegisterA
+      delete (globalThis as unknown as { __dupRegisterB?: unknown }).__dupRegisterB
+    }
+  })
 })
 
 describe('watchRuntimePlugins dir watch (#66899)', () => {
