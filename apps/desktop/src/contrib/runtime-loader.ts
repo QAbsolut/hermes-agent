@@ -6,12 +6,17 @@
  *   only) -> bare-specifier rewrite to live shim blobs (see sdk/runtime.ts)
  *   -> blob `import()` -> validate default HermesPlugin -> register(ctx)
  *
- * Loading the same plugin id again disposes the previous registrations first
- * (agent rewrites a plugin file -> clean reload) — everything taken out
- * through `ctx` (contributions, events, sockets, `ctx.setInterval`/
- * `ctx.addEventListener`); bare globals and module-scope state are the
- * plugin's own. Failures toast + log; a broken plugin can never take the app
- * down, and a module whose evaluation never settles times out on its own row.
+ * Loading the same plugin id again FROM THE SAME FILE disposes the previous
+ * registrations first (agent rewrites a plugin file -> clean reload) —
+ * everything taken out through `ctx` (contributions, events, sockets,
+ * `ctx.setInterval`/`ctx.addEventListener`); bare globals and module-scope
+ * state are the plugin's own. A DIFFERENT file claiming an id another file
+ * already owns is rejected, not silently swapped in — two disk folders can
+ * legitimately both carry a `desktop/plugin.js` (e.g. a second clone of a
+ * plugin repo kept elsewhere for an unrelated purpose) and declaring the
+ * same id must not let scan order decide which one wins. Failures toast +
+ * log; a broken plugin can never take the app down, and a module whose
+ * evaluation never settles times out on its own row.
  *
  * Sources today: the in-repo runtime example (`?raw`, proves the pipeline)
  * and the two on-disk doors — `<hermes home>/desktop-plugins/<name>/plugin.js`
