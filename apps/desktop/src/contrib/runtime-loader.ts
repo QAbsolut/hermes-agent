@@ -6,9 +6,14 @@
  *   (`@hermes/plugin-sdk` / `react*` -> live shim blobs, see sdk/runtime.ts)
  *   -> blob `import()` -> validate default HermesPlugin -> register(ctx)
  *
- * Loading the same plugin id again disposes the previous registrations first
- * (agent rewrites a plugin file -> clean reload). Failures toast + log; a
- * broken plugin can never take the app down.
+ * Loading the same plugin id again FROM THE SAME FILE disposes the previous
+ * registrations first (agent rewrites a plugin file -> clean reload). A
+ * DIFFERENT file claiming an id another file already owns is rejected, not
+ * silently swapped in — two disk folders can legitimately both carry a
+ * `desktop/plugin.js` (e.g. a second clone of a plugin repo kept elsewhere
+ * for an unrelated purpose) and declaring the same id must not let scan
+ * order decide which one wins. Failures toast + log; a broken plugin can
+ * never take the app down.
  *
  * Sources today: the in-repo runtime example (`?raw`, proves the pipeline)
  * and the two on-disk doors — `<hermes home>/desktop-plugins/<name>/plugin.js`
@@ -164,6 +169,17 @@ export async function loadRuntimePlugin(
       return null
     }
 
+    // Reject a second disk file claiming an id another file already owns
+    // instead of silently disposing + replacing it — see file docblock.
+    if (options.file) {
+      const existing = $pluginRecords.get()[plugin.id]
+
+      if (existing?.file && existing.file !== options.file) {
+        throw new Error(
+          `plugin id "${plugin.id}" is already loaded from ${existing.file} — refusing the duplicate at ${options.file}`
+        )
+      }
+    }
     const record = {
       id: plugin.id,
       name: plugin.name ?? plugin.id,
