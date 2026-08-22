@@ -78,11 +78,20 @@ def resolve_exec_command() -> str:
             # third-party import (#90292) — silently, since Terminal=false.
             # sys.executable is the interpreter actually running Hermes (the
             # venv one), so prefix it explicitly.
-            argv = [str(Path(sys.executable).resolve()), str(resolved), "desktop"]
+            #
+            # LOCAL FIX (QAbsolut install, 2026-08-22): do NOT .resolve() the
+            # interpreter. sys.executable is <venv>/bin/python3 — a symlink to
+            # uv's versioned real binary (cpython-3.11.15-...). resolve()
+            # escapes the venv, and a DE-spawned process invoked via the real
+            # binary path does not detect the venv (venv detection keys on
+            # argv[0] living in <venv>/bin) → ModuleNotFoundError: hermes_cli
+            # → silent desktop-launch failure. The un-resolved venv python
+            # keeps venv context AND is stable across uv patch upgrades.
+            argv = [str(Path(sys.executable)), str(resolved), "desktop"]
         else:
             argv = [str(resolved), "desktop"]
     else:
-        argv = [str(Path(sys.executable).resolve()), "-m", "hermes_cli.main", "desktop"]
+        argv = [str(Path(sys.executable)), "-m", "hermes_cli.main", "desktop"]
     return " ".join(_quote_exec_arg(a) for a in argv)
 
 
