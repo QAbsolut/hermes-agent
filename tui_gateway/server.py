@@ -10046,12 +10046,22 @@ def _session_live_item(sid: str, session: dict, current_sid: str = "") -> dict:
     # `has_active_delegations` reuses the same live in-memory check the
     # session already answers for its own async-delegation UI, no DB hit.
     unread = False
+    stored_cwd = None
+    stored_branch = None
+    stored_repo_root = None
     try:
         with _session_db(session) as db:
             if db is not None:
                 stored = db.get_session(key)
                 if stored is not None:
                     unread = db.session_unread(stored)
+                    # Workspace identity for dashboards (Overwatch): the same
+                    # fields projects.tree carries, resolved server-side at
+                    # cwd-set. Read off the row this block already fetched for
+                    # `unread` — no extra query.
+                    stored_cwd = stored.get("cwd")
+                    stored_branch = stored.get("git_branch")
+                    stored_repo_root = stored.get("git_repo_root")
     except Exception:
         pass
     return {
@@ -10067,6 +10077,9 @@ def _session_live_item(sid: str, session: dict, current_sid: str = "") -> dict:
         "status": status,
         "title": _session_live_title(session, key),
         "unread": unread,
+        "cwd": stored_cwd,
+        "git_branch": stored_branch,
+        "git_repo_root": stored_repo_root,
     }
 
 
