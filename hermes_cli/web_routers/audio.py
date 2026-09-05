@@ -301,6 +301,10 @@ async def speak_text(payload: TTSSpeakRequest, profile: Optional[str] = None):
     return {
         "ok": True, "data_url": f"data:{mime_type};base64,{encoded}", "mime_type": mime_type,
         "provider": result.get("provider"),
+        # True when the provider (e.g. a local command-type TTS script) already
+        # played this audio out loud on this machine — the client must not also
+        # play data_url, or the reply is heard twice.
+        "local_playback": bool(result.get("local_playback")),
     }
 
 

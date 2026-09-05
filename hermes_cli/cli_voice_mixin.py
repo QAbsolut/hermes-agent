@@ -340,9 +340,13 @@ class CLIVoiceMixin:
                 tts_result = {}
             # The tool result is authoritative — chunked long-form output returns several files.
             play_paths = tts_result.get("file_paths") or [tts_result.get("file_path") or mp3_path]
-            for play_path in play_paths if tts_result.get("success") else []:
-                if os.path.isfile(play_path) and os.path.getsize(play_path) > 0:
-                    play_audio_file(play_path)
+            # A command provider with local_playback: true (e.g. a local Kokoro/piper
+            # script) already played this out loud while synthesizing it — playing
+            # the saved file(s) too would double it up.
+            if not tts_result.get("local_playback"):
+                for play_path in play_paths if tts_result.get("success") else []:
+                    if os.path.isfile(play_path) and os.path.getsize(play_path) > 0:
+                        play_audio_file(play_path)
             # Clean up all generated files (play_paths + mp3_path + ogg variant)
             for path in set(play_paths + [mp3_path, mp3_path.rsplit(".", 1)[0] + ".ogg"]):
                 _unlink_quietly(path)

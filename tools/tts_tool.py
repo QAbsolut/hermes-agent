@@ -362,9 +362,18 @@ def _text_to_speech_single(
         file_str, voice_compatible = _finalize_voice_delivery(
             file_str, provider, command_provider_config, want_opus)
         logger.info("TTS audio saved: %s (%s bytes, provider: %s)", file_str, f"{os.path.getsize(file_str):,}", provider)
+        # A command provider with local_playback: true (e.g. a local Kokoro/piper
+        # script) already played this audio out loud while synthesizing it.
+        # Surface that so callers don't play the returned file a second time.
+        from utils import is_truthy_value
+        already_played_locally = bool(
+            command_provider_config is not None
+            and is_truthy_value(command_provider_config.get("local_playback"))
+        )
         return json.dumps({
             "success": True, "file_path": file_str, "media_tag": _media_tag([file_str], voice_compatible),
             "provider": provider, "voice_compatible": voice_compatible,
+            "local_playback": already_played_locally,
         }, ensure_ascii=False)
     except ValueError as e:
         return _tool_failure("TTS configuration error", provider, e)
@@ -448,6 +457,7 @@ def text_to_speech_tool(
             command_provider_config=command_provider_config, want_opus=want_opus,
             instructions=instructions)
         voice_compatible = bool(chunk_results) and all(bool(r.get("voice_compatible")) for r in chunk_results)
+        local_playback = bool(chunk_results) and bool(chunk_results[0].get("local_playback"))
         delivery_base = base_path.with_suffix(Path(encoded_paths[0]).suffix)
         final_paths, combined_chunks = _build_audio_delivery_files(
             encoded_paths, str(delivery_base), delivery_profile, voice_compatible=voice_compatible)
@@ -457,6 +467,7 @@ def text_to_speech_tool(
             "success": True, "file_path": final_paths[0], "file_paths": final_paths,
             "media_tag": _media_tag(final_paths, voice_compatible),
             "provider": chunk_results[0].get("provider", provider), "voice_compatible": voice_compatible,
+            "local_playback": local_playback,
             "chunk_count": len(chunks), "delivery_file_count": len(final_paths),
             "combined_chunks": bool(combined_chunks),
             "delivery_profile": {
