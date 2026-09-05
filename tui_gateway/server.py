@@ -2605,13 +2605,46 @@ def _session_live_item(sid: str, session: dict, current_sid: str = "") -> dict:
     elif inflight:
         preview = " ".join(str(inflight.get("assistant") or inflight.get("user") or preview).split())[:160]
     now = time.time()
+    # Additive fields for Overwatch's session-status dot to approximate the
+    # desktop sidebar's richer state vocabulary (needs-input/working/stalled/
+    # background/unread/draft/idle) from a 5s poll instead of a live stream:
+    # `status`+`last_active` alone can't tell stalled from working, or surface
+    # unread/background at all. `unread` mirrors SessionDB.session_unread's
+    # own watermark-vs-activity comparison (list_sessions_rich's contract);
+    # `has_active_delegations` reuses the same live in-memory check the
+    # session already answers for its own async-delegation UI, no DB hit.
+    unread = False
+    stored_cwd = None
+    stored_branch = None
+    stored_repo_root = None
+    try:
+        with _session_db(session) as db:
+            if db is not None:
+                stored = db.get_session(key)
+                if stored is not None:
+                    unread = db.session_unread(stored)
+                    # Workspace identity for dashboards (Overwatch): the same
+                    # fields projects.tree carries, resolved server-side at
+                    # cwd-set. Read off the row this block already fetched for
+                    # `unread` — no extra query.
+                    stored_cwd = stored.get("cwd")
+                    stored_branch = stored.get("git_branch")
+                    stored_repo_root = stored.get("git_repo_root")
+    except Exception:
+        pass
     return {
-        "current": sid == current_sid, "id": sid,
+        "current": sid == current_sid,
+        "has_active_delegations": _session_has_active_delegations(sid, session),
+        "id": sid,
         "last_active": float(session.get("last_active") or session.get("created_at") or now),
         "message_count": len(history),
         "model": str(getattr(agent, "model", "") or _resolve_model()), "preview": preview,
         "session_key": key, "started_at": float(session.get("created_at") or now), "status": status,
         "title": _session_live_title(session, key),
+        "unread": unread,
+        "cwd": stored_cwd,
+        "git_branch": stored_branch,
+        "git_repo_root": stored_repo_root,
     }
 
 
