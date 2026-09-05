@@ -376,11 +376,17 @@ async def speak_stream_ws(ws: "WebSocket") -> None:
 
     def _resolve():
         from tools.tts_streaming import resolve_streaming_provider
-        from tools.tts_tool import _get_provider, _load_tts_config, _resolve_max_text_length
+        from tools.tts_tool import (
+            _get_provider,
+            _load_tts_config,
+            _resolve_max_text_length,
+        )
+
         with _config_profile_scope(profile):
             cfg = _load_tts_config()
+            provider = _get_provider(cfg)
             streamer = resolve_streaming_provider(cfg)
-            cap = _resolve_max_text_length(_get_provider(cfg), cfg) if streamer else 0
+            cap = _resolve_max_text_length(provider, cfg) if streamer else 0
         return streamer, cap
 
     try:

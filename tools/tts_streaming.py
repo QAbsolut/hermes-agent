@@ -11,7 +11,11 @@ a subclass; the dispatcher, config gate (``tts.<name>.streaming``) and resolver 
 from __future__ import annotations
 
 import logging
+import os
 import re
+import shlex
+import subprocess
+import threading
 import time
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, Iterator, List, Optional
@@ -155,7 +159,30 @@ def resolve_streaming_provider(
     if pinned == "auto":
         return next((inst for name in _PROVIDER_PRIORITY
                      if (inst := _try_instantiate(name, tts_config))), None)
-    return _try_instantiate(pinned or (preferred or _get_provider(tts_config)).lower().strip(), tts_config)
+    if pinned:
+        # Allow "auto" or an explicit streaming provider name to fall through
+        # to the local_command bridge for command-type providers
+        if pinned == "local_command":
+            return _try_instantiate("local_command", tts_config)
+        return _try_instantiate(pinned, tts_config)
+
+    name = (preferred or _get_provider(tts_config)).lower().strip()
+    inst = _try_instantiate(name, tts_config)
+    if inst is not None:
+        return inst
+
+    # If the configured provider is a command-type with local_playback: true,
+    # try the local_command streaming bridge — it decodes the command provider's
+    # output to PCM chunks so the WebSocket streaming path can be used instead
+    # of falling back to the POST data-URL path (which would double-play).
+    if name and name in _REGISTRY:
+        return inst  # Already tried and failed
+    from tools.tts_command_provider import _get_named_provider_config, _is_command_provider_config
+    provider_config = _get_named_provider_config(tts_config, name) if name else {}
+    if _is_command_provider_config(provider_config):
+        return _try_instantiate("local_command", tts_config)
+
+    return None
 
 
 def _capped(chunks: Iterator[bytes], label: str) -> Iterator[bytes]:
@@ -338,3 +365,154 @@ class XAIStreamer(StreamingTTSProvider):
                 if exc.__class__.__name__ != "ConnectionClosed":
                     logger.warning("xAI WS receive failed: %s", exc)
                 return
+
+
+# ---------------------------------------------------------------------------
+# Local command-type streaming provider
+# ---------------------------------------------------------------------------
+# Bridges a command-type TTS provider (e.g. a local Kokoro script) to the
+# streaming WebSocket path by invoking the provider's command with stdin text
+# and piping the output through ffmpeg for MP3/WAV → int16 PCM conversion.
+#
+# Opt-in: set ``tts.streaming.provider: local_command`` in config.yaml, or
+# set ``tts.streaming.provider: auto`` and the resolver will discover any
+# command-type provider whose section declares ``streaming: true``.
+#
+# The provider reads text from stdin and writes raw s16le PCM (24kHz, mono)
+# to stdout. This provider yields those chunks directly — no post-hoc
+# ffmpeg decode needed because the script handles it per-sentence.
+# ---------------------------------------------------------------------------
+
+
+@register("local_command")
+class LocalCommandStreamer(StreamingTTSProvider):
+    """Streaming provider for local command-type TTS scripts.
+
+    Calls the command-type provider's script, captures the output file, and
+    decodes it to int16 PCM chunks via ffmpeg. Falls back to the sync command
+    path if ffmpeg is unavailable.
+    """
+
+    sample_rate = 24000
+    channels = 1
+    sample_width = 2  # int16
+
+    @staticmethod
+    def available() -> bool:
+        # Always potentially available — availability depends on the command
+        # provider config and whether the command script exists.
+        return True
+
+    def __init__(self, tts_config: Dict, section: Dict):
+        super().__init__(tts_config, section)
+        self._command_config = self._resolve_command_config(tts_config)
+        if not self._command_config:
+            raise RuntimeError("No command-type TTS provider configured")
+
+    @staticmethod
+    def _resolve_command_config(tts_config: Dict) -> Dict:
+        """Find the command-type provider to stream from.
+
+        Resolution order:
+        1. If ``tts.streaming.command_provider`` is set, use that named section.
+        2. Otherwise, find the first command-type provider in
+           ``tts.providers`` that declares ``streaming: true``.
+        3. If the main provider (tts.provider) is itself a command-type, use it.
+        """
+        from tools.tts_command_provider import (
+            _get_named_provider_config, _is_command_provider_config)
+
+        streaming_cfg = tts_config.get("streaming") or {}
+
+        # Explicit named provider
+        named = streaming_cfg.get("command_provider")
+        if named:
+            config = _get_named_provider_config(tts_config, named)
+            if _is_command_provider_config(config):
+                return config
+
+        # Search for command providers with streaming: true
+        providers = tts_config.get("providers") or {}
+        if isinstance(providers, dict):
+            for name, config in providers.items():
+                if (
+                    _is_command_provider_config(config)
+                    and str(config.get("streaming", "")).lower().strip()
+                    in ("true", "1", "yes", "on")
+                ):
+                    return config
+
+        # Fall back to the main provider if it's a command type
+        provider_name = _get_provider(tts_config)
+        if provider_name:
+            config = _get_named_provider_config(tts_config, provider_name)
+            if _is_command_provider_config(config):
+                return config
+
+        return {}
+
+    def stream(self, text: str) -> Iterator[bytes]:
+        """Stream PCM chunks for *text* by invoking the command provider script
+        in --stream mode.
+
+        The script receives text on stdin and writes raw s16le PCM (24kHz, mono)
+        to stdout. This provider yields those chunks directly — no post-hoc
+        ffmpeg decode needed because the script handles it per-sentence.
+        """
+        command_template = self._command_config["command"]
+
+        # Build the streaming command:
+        # - Append --stream to tell the script to use streaming mode
+        # - Replace {input_path} with "-" (stdin) and {output_path} with "/dev/null"
+        #   since the script outputs PCM to stdout in stream mode
+        rendered = command_template.replace("{input_path}", "-")
+        rendered = rendered.replace("{output_path}", "/dev/null")
+        rendered = f"{rendered} --stream"
+
+        logger.info("Streaming TTS: invoking command provider (%s)", rendered[:120])
+
+        # Launch the process with text piped to stdin, PCM on stdout
+        proc = subprocess.Popen(
+            rendered,
+            shell=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        # Write text to stdin in a background thread to avoid deadlock
+        def _write_stdin():
+            try:
+                if proc.stdin:
+                    proc.stdin.write(text.encode("utf-8"))
+                    proc.stdin.close()
+            except Exception:
+                pass
+
+        writer = threading.Thread(target=_write_stdin, daemon=True)
+        writer.start()
+
+        # Read PCM chunks from stdout
+        chunk_size = int(self.sample_rate * 0.05 * self.sample_width)  # 50ms chunks
+        try:
+            if proc.stdout is None:
+                raise RuntimeError("No stdout pipe for streaming")
+            while True:
+                chunk = proc.stdout.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            writer.join(timeout=5)
+            if proc.stdout:
+                proc.stdout.close()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+
+        if proc.returncode != 0:
+            stderr = proc.stderr.read().decode("utf-8", errors="replace")[:500] if proc.stderr else ""
+            logger.warning("Streaming TTS command exited with %d: %s", proc.returncode, stderr)
+            raise RuntimeError(f"Command failed (exit {proc.returncode}): {stderr}")

@@ -457,6 +457,11 @@ def text_to_speech_tool(
             command_provider_config=command_provider_config, want_opus=want_opus,
             instructions=instructions)
         voice_compatible = bool(chunk_results) and all(bool(r.get("voice_compatible")) for r in chunk_results)
+        # Propagate local_playback from chunk results: when the command-type
+        # provider plays audio itself during synthesis (e.g. voice-play.sh
+        # streaming to pw-play), the desktop must not also play the returned
+        # file, or the reply is heard multiple times. All chunks share the same
+        # provider config, so checking the first is sufficient.
         local_playback = bool(chunk_results) and bool(chunk_results[0].get("local_playback"))
         delivery_base = base_path.with_suffix(Path(encoded_paths[0]).suffix)
         final_paths, combined_chunks = _build_audio_delivery_files(
