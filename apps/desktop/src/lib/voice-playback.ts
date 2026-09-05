@@ -579,6 +579,13 @@ async function playSpeechDataUrl(
     return false
   }
 
+  // The backend's command-type TTS provider (e.g. a local Kokoro script)
+  // already played this out loud on this machine while synthesizing it —
+  // playing the returned data URL too would speak the reply twice in a row.
+  if (response.local_playback) {
+    return true
+  }
+
   const audio = new Audio(response.data_url)
   currentAudio = audio
   setVoicePlaybackState(currentState('speaking', options, audio))
