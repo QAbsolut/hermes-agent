@@ -45,9 +45,21 @@ async def active_list(connection, ref, params):
         if row.get('source') in INTERNAL_LISTING_SOURCES or closed_and_unviewed(authority, sid, handle):
             continue
         started = float(row.get('started_at') or 0)
+        # Additive dashboard fields (Overwatch's session-status dot), matching the legacy sidecar
+        # item's shape: `unread` off the same row this loop already fetched, workspace identity the
+        # way projects.tree carries it, and live delegations from the registry.
+        try:
+            from tools.async_delegation import has_live_for_session
+            delegations = has_live_for_session(session_key=sid, origin_ui_session_id=sid)
+        except Exception:
+            delegations = True  # a transient registry failure must not read as idle background work
         rows.append({'current': sid == current, 'id': sid, 'session_key': sid,
                      'last_active': float(row.get('ended_at') or started), 'started_at': started,
                      'message_count': int(row.get('message_count') or 0),
                      'model': str(row.get('model') or ''), 'preview': '', 'title': row.get('title') or '',
-                     'status': _status(live, handle, authority._pending_rows(candidate))})
+                     'status': _status(live, handle, authority._pending_rows(candidate)),
+                     'has_active_delegations': delegations,
+                     'unread': bool(authority.db.session_unread(row)),
+                     'cwd': row.get('cwd'), 'git_branch': row.get('git_branch'),
+                     'git_repo_root': row.get('git_repo_root')})
     return {'sessions': rows}
