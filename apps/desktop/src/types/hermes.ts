@@ -27,6 +27,8 @@ export interface AudioSpeakResponse {
   data_url: string
   mime_type: string
   provider?: string
+  /** True when the provider already played this audio out loud server-side. */
+  local_playback?: boolean
 }
 
 /** `POST /api/audio/tts-lease` — TTS engine warm-up / release driven by speech toggles. */
