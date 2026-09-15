@@ -183,6 +183,7 @@ export async function loadRuntimePlugin(
         )
       }
     }
+
     const record = {
       id: plugin.id,
       name: plugin.name ?? plugin.id,
