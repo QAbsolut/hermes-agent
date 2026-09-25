@@ -242,25 +242,40 @@ def test_plugin_can_move_compatible_transitive_but_not_exact_requirement(tmp_pat
     assert (baseline / "uv.lock").read_bytes() == first_lock
 
 
+
 def test_member_uv_lock_travels_with_its_member(tmp_path):
-    """pm/runtime.py::_inputs reads <workspace>/pm/uv.lock; the snapshot must carry it."""
+    """A member's own lock is a build input and must be snapshotted with the member.
+
+    Only the workspace ROOT lock is re-supplied separately by ``lock_and_sync``.
+    ``pm/runtime.py::_inputs()`` hashes ``<workspace>/pm/{pyproject.toml,uv.lock}``
+    to key the runtime generation, so a generation that drops the member lock makes
+    every ``hermes pm`` subcommand die at preflight with FileNotFoundError.
+    """
     core = tmp_path / "core"
     member = core / "pm"
     member.mkdir(parents=True)
     (core / "pyproject.toml").write_text(
         '[project]\nname="core"\nversion="1"\nrequires-python=">=3.11"\n'
-        '[tool.setuptools.packages.find]\ninclude=["pm"]\n',
+        '[tool.setuptools.packages.find]\ninclude=["core", "pm"]\n',
         encoding="utf-8",
     )
-    (core / "uv.lock").write_text("version = 1\n# root lock\n", encoding="utf-8")
+    (core / "core").mkdir()
+    (core / "core/__init__.py").write_text("", encoding="utf-8")
+    # A workspace-root lock exists in the source and must NOT be copied.
+    (core / "uv.lock").write_text("version = 1\n# workspace root lock\n", encoding="utf-8")
     (member / "pyproject.toml").write_text('[project]\nname="pm"\nversion="1"\n', encoding="utf-8")
     (member / "uv.lock").write_text("version = 1\n# member lock\n", encoding="utf-8")
+    (member / "code.py").write_text("VALUE = 1\n", encoding="utf-8")
 
     destination = tmp_path / "stage"
     workspace._copy_core_inputs(core, destination)
 
+    assert (destination / "pm/pyproject.toml").is_file()
+    assert (destination / "pm/code.py").is_file()
+    # Regression: the member's own lock has to survive the snapshot.
     assert (destination / "pm/uv.lock").read_text(encoding="utf-8") == "version = 1\n# member lock\n"
-    assert not (destination / "uv.lock").exists(), "the root lock is seeded by lock_and_sync, not copied"
+    # The workspace-root lock stays excluded; lock_and_sync re-supplies it from the seed.
+    assert not (destination / "uv.lock").exists()
 
 
 def test_nested_dist_travels_but_root_dist_stays_out(tmp_path):
@@ -282,3 +297,4 @@ def test_nested_dist_travels_but_root_dist_stays_out(tmp_path):
 
     assert (destination / "plugins/kanban/dashboard/dist/index.js").read_text(encoding="utf-8") == "ENTRY\n"
     assert not (destination / "dist").exists(), "root build output never enters the snapshot"
+
