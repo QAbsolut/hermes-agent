@@ -3221,9 +3221,13 @@ export interface SessionActiveListParams {
 export interface SessionActiveListResult {
   sessions: SessionActiveItem[]
 }
-/** ``server._session_live_item``. */
+/** ``server._session_live_item``.`` */
 export interface SessionActiveItem {
   current: boolean
+  cwd?: string | null
+  git_branch?: string | null
+  git_repo_root?: string | null
+  has_active_delegations?: boolean | null
   id: string
   last_active: number
   message_count: number
@@ -3233,6 +3237,7 @@ export interface SessionActiveItem {
   started_at: number
   status: LiveSessionStatus
   title: string
+  unread?: boolean | null
 }
 export type LiveSessionStatus = 'idle' | 'starting' | 'waiting' | 'working' | 'streaming' | 'resuming'
 /** ``session_id`` is the STORED id. */
