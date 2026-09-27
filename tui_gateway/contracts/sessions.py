@@ -270,9 +270,13 @@ class SessionActiveListParams(ProfileParams):
 
 
 class SessionActiveItem(Result):
-    """``server._session_live_item``."""
+    """``server._session_live_item``.``"""
 
     current: bool
+    cwd: str | None = None
+    git_branch: str | None = None
+    git_repo_root: str | None = None
+    has_active_delegations: bool | None = None
     id: str
     last_active: float
     message_count: int
@@ -282,6 +286,7 @@ class SessionActiveItem(Result):
     started_at: float
     status: LiveSessionStatus
     title: str
+    unread: bool | None = None
 
 
 class SessionActiveListResult(Result):
