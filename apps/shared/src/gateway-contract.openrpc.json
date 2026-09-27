@@ -28317,11 +28317,59 @@
       },
       "SessionActiveItem": {
         "additionalProperties": false,
-        "description": "``server._session_live_item``.",
+        "description": "``server._session_live_item``.``",
         "properties": {
           "current": {
             "title": "Current",
             "type": "boolean"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cwd"
+          },
+          "git_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Git Branch"
+          },
+          "git_repo_root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Git Repo Root"
+          },
+          "has_active_delegations": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Has Active Delegations"
           },
           "id": {
             "title": "Id",
@@ -28357,6 +28405,18 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "unread": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unread"
           }
         },
         "required": [
