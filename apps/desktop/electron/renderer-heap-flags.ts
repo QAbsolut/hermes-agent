@@ -152,9 +152,13 @@ export function planLaunchSwitches(cfg: DesktopLaunchConfig, argv: readonly stri
       return
     }
 
+    // `use-angle` is exempt: the NVIDIA EGL fallback (main.ts) appends
+    // `--use-angle=swiftshard` *before* config is applied, so without this
+    // exemption the config's `--use-angle=gl` would be silently deduplicated
+    // and SwiftShard would always win, defeating `desktop.electron_flags`.
     if (fromArgv) {
       argvSwitches.add(name)
-    } else if (!argvSwitches.has(name)) {
+    } else if (!argvSwitches.has(name) || name === 'use-angle') {
       others.push(value === undefined ? { name } : { name, value })
     }
   }
