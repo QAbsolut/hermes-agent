@@ -1291,6 +1291,14 @@ let desktopSshPathOverride = ''
   }
 
   applyLaunchSwitches(app.commandLine, desktopLaunchConfig, process.argv.slice(1))
+
+  // Re-assert crash-avoidance switches after config.yaml so a stale
+  // --use-angle=gl (set before the driver was added to the broken set)
+  // cannot override SwiftShard routing under a known-crashing NVIDIA series.
+  // The user can still opt out with HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0.
+  if (NVIDIA_EGL_FALLBACK.enable) {
+    app.commandLine.appendSwitch('use-angle', 'swiftshard')
+  }
 }
 
 // Linux: a runtime `--no-sandbox` kills renderers on /dev/shm (linux-sandbox-relaunch.ts).
