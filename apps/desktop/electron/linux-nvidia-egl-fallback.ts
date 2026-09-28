@@ -30,13 +30,14 @@ const OVERRIDE_OFF = new Set(['0', 'false', 'no', 'off'])
 /**
  * Driver major series known to carry the broken EGL/X11 probing (#40077).
  * Only series with confirmed reports belong here: 580.159.03 and 580.173.02
- * are the affected reports, 570.x is the recommended downgrade, and newer
- * series (e.g. 615.x, #123203) probe fine — an open-ended `>= 580` wrongly
- * forced them onto CPU SwiftShader rendering. That is the EGL probe only: 615.x
- * still crashes on Wayland ozone (#126013), which is why wslg-launch.ts keeps
- * the NVIDIA proprietary driver on XWayland by default.
+ * are the affected reports, 570.x is the recommended downgrade. 615.x
+ * (Open Kernel Module, #123203) exhibits the same EGL probe failure and
+ * must also be covered — an open-ended `>= 580` would wrongly include
+ * unaffected series like 590/595 that share no reported crash. That is the
+ * EGL probe only: 615.x still crashes on Wayland ozone (#126013), which is
+ * why wslg-launch.ts keeps the NVIDIA proprietary driver on XWayland by default.
  */
-export const NVIDIA_BROKEN_EGL_MAJORS: ReadonlySet<number> = new Set([580])
+export const NVIDIA_BROKEN_EGL_MAJORS: ReadonlySet<number> = new Set([580, 615])
 
 export interface NvidiaEglFallbackDecision {
   enable: boolean
