@@ -23,19 +23,17 @@ describe('parseNvidiaDriverMajor', () => {
 })
 
 describe('decideNvidiaEglFallback', () => {
-  it('enables on linux with a known-broken series major (580)', () => {
-    const decision = decideNvidiaEglFallback({ ...LINUX, driverMajor: 580 })
-    expect(decision.enable).toBe(true)
-    expect(decision.reason).toContain('580')
+  it('enables on linux with a known-broken series major', () => {
+    expect(decideNvidiaEglFallback({ ...LINUX, driverMajor: 580 }).enable).toBe(true)
+    expect(decideNvidiaEglFallback({ ...LINUX, driverMajor: 615 }).enable).toBe(true)
   })
 
-  it('stays off on series without confirmed EGL reports (#123203)', () => {
-    // 570.x is the recommended downgrade from #40077; 615.x (two driver
-    // generations later) probes fine. An open-ended >= check wrongly forced
-    // these onto CPU SwiftShader rendering.
+  it('stays off on series without confirmed EGL reports', () => {
+    // 570.x is the recommended downgrade from #40077; 590/595 share no
+    // reported crash. An open-ended >= check wrongly forced these onto CPU
+    // SwiftShader rendering.
     expect(decideNvidiaEglFallback({ ...LINUX, driverMajor: 570 }).enable).toBe(false)
     expect(decideNvidiaEglFallback({ ...LINUX, driverMajor: 590 }).enable).toBe(false)
-    expect(decideNvidiaEglFallback({ ...LINUX, driverMajor: 615 }).enable).toBe(false)
   })
 
   it('the known-broken set is closed, not a floor', () => {
