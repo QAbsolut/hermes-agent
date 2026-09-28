@@ -1342,6 +1342,14 @@ let desktopSshPathOverride = ''
       `[hermes] desktop launch switch from config.yaml: --${planned.name}${planned.value === undefined ? '' : `=${planned.value}`}`
     )
   }
+
+  // Re-assert crash-avoidance switches after config.yaml so a stale
+  // --use-angle=gl (set before the driver was added to the broken set)
+  // cannot override SwiftShard routing under a known-crashing NVIDIA series.
+  // The user can still opt out with HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0.
+  if (NVIDIA_EGL_FALLBACK.enable) {
+    app.commandLine.appendSwitch('use-angle', 'swiftshard')
+  }
 }
 
 // ACTIVE_HERMES_ROOT — the canonical mutable Hermes install. Same path
