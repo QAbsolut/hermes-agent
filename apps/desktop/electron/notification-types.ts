@@ -15,4 +15,6 @@ export interface HermesNotification {
   /** Renderer handle for onActivate / onAction callbacks. */
   notifyId?: string
   actions?: { id: string; text: string; activate?: string }[]
+  /** freedesktop urgency. Omitted = derived from `kind`. */
+  urgency?: 0 | 1 | 2
 }
