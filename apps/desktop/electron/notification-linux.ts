@@ -15,6 +15,8 @@ interface NotificationOptions {
   silent: boolean
   icon?: string
   actions: { text: string }[]
+  /** freedesktop urgency: 0 low, 1 normal, 2 critical. */
+  urgency?: 0 | 1 | 2
 }
 
 interface Connection {
@@ -257,7 +259,7 @@ export function createLinuxNotifications() {
                 options.body,
                 actions,
                 {
-                  urgency: new Variant('y', 1),
+                  urgency: new Variant('y', options.urgency ?? 1),
                   'desktop-entry': new Variant('s', 'hermes'),
                   'suppress-sound': new Variant('b', options.silent)
                 },
