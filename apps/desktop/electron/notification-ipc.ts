@@ -12,6 +12,21 @@ interface NotificationHost {
   platform?: NodeJS.Platform
 }
 
+/**
+ * Blocking prompts arrive as Critical so a notification daemon can hold them
+ * open (`timeout-critical: 0` in swaync) and style them as `.critical`.
+ * Everything else stays Normal. A per-notification `urgency` always wins.
+ */
+const BLOCKING_KINDS = new Set(['approval', 'input'])
+
+function urgencyFor(payload: HermesNotification): 0 | 1 | 2 {
+  if (typeof payload?.urgency === 'number') {
+    return payload.urgency
+  }
+
+  return BLOCKING_KINDS.has(String(payload?.kind)) ? 2 : 1
+}
+
 export function registerNativeNotifications({
   getMainWindow,
   focusWindow,
@@ -42,6 +57,8 @@ export function registerNativeNotifications({
     const actions = Array.isArray(payload?.actions) ? payload.actions : []
     const icon = typeof payload?.icon === 'string' && payload.icon.trim() ? payload.icon.trim() : undefined
 
+    const urgency = urgencyFor(payload)
+
     const options = {
       title: payload?.title || 'Hermes',
       body: payload?.body || '',
@@ -50,7 +67,11 @@ export function registerNativeNotifications({
       actions: actions.map(action => ({ type: 'button' as const, text: String(action?.text || '') }))
     }
 
-    const notification = linux ? linux.create(options) : new Notification(options)
+    // The Linux bridge speaks numeric freedesktop urgency; Electron's own
+    // Notification takes the string form, and only on the non-Linux path.
+    const notification = linux
+      ? linux.create({ ...options, urgency })
+      : new Notification({ ...options, urgency: ['low', 'normal', 'critical'][urgency] as 'normal' })
 
     notification.on('click', () => {
       const window = targetWindow()
