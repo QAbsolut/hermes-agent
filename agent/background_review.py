@@ -911,10 +911,11 @@ def _routed_reasoning_config(task_cfg: Optional[Dict[str, Any]]) -> Optional[Dic
 
 def _fork_init_kwargs(agent: Any, rt: Dict[str, Any], routed: bool, max_iterations: int,
                       task_cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """AIAgent constructor kwargs for the review fork. skip_memory=True: an external memory plugin
-    scoped to the parent's session_id would leak the harness prompt into the user's real memory
-    namespace; built-in MEMORY.md/USER.md state is re-bound by the caller. Toolsets match the
-    parent so ``tools[]`` is byte-identical (Anthropic's cache key includes it); the runtime
+    """AIAgent constructor kwargs for the review fork. skip_memory=False: the review fork
+    initializes the external memory provider (e.g. Mnemosyne) so provider tools injected via
+    ``auxiliary.background_review.extra_tools`` are functional. The built-in MEMORY.md/USER.md
+    store remains available alongside the provider (additive, not replacement). Toolsets match
+    the parent so ``tools[]`` is byte-identical (Anthropic's cache key includes it); the runtime
     whitelist restricts dispatch."""
     kwargs: Dict[str, Any] = {
         "model": rt.get("model") or agent.model, "max_iterations": max_iterations, "quiet_mode": True,
@@ -923,7 +924,7 @@ def _fork_init_kwargs(agent: Any, rt: Dict[str, Any], routed: bool, max_iteratio
         "api_key": rt.get("api_key") or None, "credential_pool": rt.get("credential_pool"),
         "request_overrides": rt.get("request_overrides") or {}, "parent_session_id": agent.session_id,
         "enabled_toolsets": getattr(agent, "enabled_toolsets", None),
-        "disabled_toolsets": getattr(agent, "disabled_toolsets", None), "skip_memory": True,
+        "disabled_toolsets": getattr(agent, "disabled_toolsets", None), "skip_memory": False,
     }
     if isinstance(rt.get("max_tokens"), int):
         kwargs["max_tokens"] = rt["max_tokens"]
