@@ -70,6 +70,7 @@ function currentState(
   return {
     audioElement,
     messageId: options?.messageId ?? null,
+    sessionId: options?.sessionId ?? null,
     sequence,
     source: options?.source ?? null,
     status
@@ -81,6 +82,8 @@ function currentState(
  *  halves → the active (connection, profile). */
 export interface VoicePlaybackOptions extends OwnerScope {
   messageId?: string | null
+  /** The session that started playback; scopes the composer box to it. */
+  sessionId?: string | null
   /** Skip the client-direct/stream rungs and POST straight to /api/audio/speak.
    *  For callers whose stream path (client-direct, else WS relay) already
    *  answered `fallback` this reply; the relay may not have been probed. */
@@ -112,6 +115,7 @@ export function stopVoicePlayback() {
   setVoicePlaybackState({
     audioElement: null,
     messageId: null,
+    sessionId: null,
     sequence,
     source: null,
     status: 'idle'
@@ -646,6 +650,13 @@ async function playSpeechDataUrl(
 
   if (!isCurrent()) {
     return false
+  }
+
+  // The backend's command-type TTS provider (e.g. a local Kokoro script)
+  // already played this out loud on this machine while synthesizing it —
+  // playing the returned data URL too would speak the reply twice in a row.
+  if (response.local_playback) {
+    return true
   }
 
   const audio = new Audio(response.data_url)
