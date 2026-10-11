@@ -29,6 +29,8 @@ export type ConversationStatus = 'idle' | 'listening' | 'transcribing' | 'thinki
 
 interface VoiceConversationOptions {
   busy: boolean
+  /** The session that owns this conversation; scopes the playback box to it. */
+  sessionId?: string | null
   enabled: boolean
   onFatalError?: () => void
   /** Interrupt the in-flight agent turn (the same seam as the Stop button).
@@ -75,6 +77,7 @@ const METER_FAILURE_LIMIT = 2
 
 export function useVoiceConversation({
   busy,
+  sessionId,
   enabled,
   onFatalError,
   onInterrupt,
@@ -757,6 +760,7 @@ export function useVoiceConversation({
         // straight to /api/audio/speak (same server TTS) instead of re-probing.
         const playback = playSpeechText(sentence, {
           ...ownerRef.current,
+          sessionId,
           source: 'voice-conversation',
           syncOnly: true
         })
@@ -830,7 +834,7 @@ export function useVoiceConversation({
 
       poll()
     },
-    [ensureBargeMonitor, pendingResponse, settleAfterSpeech, voiceCopy.playbackFailed]
+    [ensureBargeMonitor, pendingResponse, sessionId, settleAfterSpeech, voiceCopy.playbackFailed]
   )
 
   /**
@@ -857,7 +861,7 @@ export function useVoiceConversation({
       ensureBargeMonitor()
 
       void (async () => {
-        const session = await startSpeechStream({ ...ownerRef.current, source: 'voice-conversation' })
+        const session = await startSpeechStream({ ...ownerRef.current, sessionId, source: 'voice-conversation' })
 
         // The session may resolve after the loop moved on (barge, disable).
         if (responseIdRef.current !== responseId) {
@@ -926,7 +930,7 @@ export function useVoiceConversation({
         settleAfterSpeech(bargedRef.current)
       })()
     },
-    [awaitFallbackSpeech, ensureBargeMonitor, feedSpeechSession, settleAfterSpeech]
+    [awaitFallbackSpeech, ensureBargeMonitor, feedSpeechSession, sessionId, settleAfterSpeech]
   )
 
   const start = useCallback(async () => {
