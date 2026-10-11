@@ -133,6 +133,7 @@ export function useAutoSpeakReplies({
           connectionId,
           messageId: reply.id,
           profile,
+          sessionId,
           source: 'read-aloud',
           ...(segmentKey ? { turnKey: segmentKey } : {})
         }).then(
