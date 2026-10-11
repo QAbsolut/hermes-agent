@@ -90,6 +90,7 @@ export function useAutoSpeakReplies({
           connectionId,
           messageId: reply.id,
           profile,
+          sessionId,
           source: 'read-aloud',
           ...(reply.turnKey ? { turnKey: reply.turnKey } : {})
         }).then(

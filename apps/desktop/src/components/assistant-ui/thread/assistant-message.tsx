@@ -1177,7 +1177,7 @@ const ReadAloudButton: FC<{
       }
 
       try {
-        await playSpeechText(text, { connectionId, messageId, profile, source: 'read-aloud' })
+        await playSpeechText(text, { connectionId, messageId, profile, sessionId, source: 'read-aloud' })
         markAssistantIdSpoken(sessionId, view.$messages.get(), messageId)
       } catch (error) {
         notifyError(error, copy.readAloudFailed)
