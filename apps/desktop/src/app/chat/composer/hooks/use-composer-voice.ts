@@ -218,6 +218,7 @@ export function useComposerVoice({
 
   const chainedConversation = useVoiceConversation({
     busy,
+    sessionId,
     consumePendingResponse,
     enabled: voiceConversationActive && !liveEngineActive,
     onFatalError: () => setVoiceConversationActive(false),

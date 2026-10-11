@@ -43,7 +43,7 @@ export function requestAttention(window: BrowserWindow | null | undefined): void
       window.flashFrame(false)
     }
   })
-} (fix(desktop): pass freedesktop urgency through to Linux notifications)
+}
 export function registerNativeNotifications({
   getMainWindow,
   focusWindow,

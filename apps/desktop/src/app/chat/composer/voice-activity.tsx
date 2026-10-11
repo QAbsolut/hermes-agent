@@ -205,11 +205,13 @@ export function VoiceActivity({ state }: { state: VoiceActivityState }) {
   )
 }
 
-export function VoicePlaybackActivity() {
+export function VoicePlaybackActivity({ sessionId }: { sessionId: string | null }) {
   const { t } = useI18n()
   const playback = useStore($voicePlayback)
 
-  if (playback.status === 'idle') {
+  // Scope the box to the session that started playback — a session-less global
+  // store lights up every open session's composer.
+  if (playback.status === 'idle' || playback.sessionId !== sessionId) {
     return null
   }
 
