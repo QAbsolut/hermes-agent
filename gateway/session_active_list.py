@@ -10,6 +10,7 @@ turn that was still running. Rows keep ``server._session_live_item``'s shape; ``
 from __future__ import annotations
 
 from persistence.core.errors import AuthorityRefusal
+from persistence.sqlite.conversation._store.sessions import session_unread
 
 
 def _status(live, handle, pending) -> str:
@@ -55,7 +56,7 @@ async def active_list(connection, ref, params):
                      'model': str(row.get('model') or ''), 'preview': '', 'title': row.get('title') or '',
                      'source': row.get('source'), 'status': _status(entry.live, entry.handle, entry.pending),
                      'has_active_delegations': delegations,
-                     'unread': bool(authority.db.session_unread(row)),
+                     'unread': bool(session_unread(row)),
                      'cwd': row.get('cwd'), 'git_branch': row.get('git_branch'),
                      'git_repo_root': row.get('git_repo_root')})
     return {'sessions': rows}
